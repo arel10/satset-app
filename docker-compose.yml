@@ -1,0 +1,113 @@
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: satset-mysql
+    restart: unless-stopped
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --default-time-zone=+00:00
+    environment:
+      MYSQL_ROOT_PASSWORD: root_secret
+      MYSQL_DATABASE: satset_db
+      MYSQL_USER: satset
+      MYSQL_PASSWORD: satset_secret
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./deploy/docker/mysql/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "satset", "-psatset_secret"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    networks:
+      - satset-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: satset-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - satset-network
+
+  minio:
+    image: minio/minio:latest
+    container_name: satset-minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadminpassword
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio_data:/data
+    networks:
+      - satset-network
+
+  api:
+    build:
+      context: ./apps/api
+      dockerfile: Dockerfile
+    container_name: satset-api
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      APP_ENV: development
+      PORT: "8080"
+      DB_HOST: mysql
+      DB_PORT: "3306"
+      DB_USER: satset
+      DB_PASSWORD: satset_secret
+      DB_NAME: satset_db
+      REDIS_ADDR: redis:6379
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - satset-network
+
+  web:
+    build:
+      context: ./apps/web
+      dockerfile: Dockerfile
+    container_name: satset-web
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      NEXT_PUBLIC_API_URL: http://localhost:8080
+    depends_on:
+      - api
+    networks:
+      - satset-network
+
+networks:
+  satset-network:
+    driver: bridge
+
+volumes:
+  mysql_data:
+    driver: local
+  redis_data:
+    driver: local
+  minio_data:
+    driver: local
