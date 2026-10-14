@@ -28,6 +28,13 @@ func NewHealthHandler(db DatabasePinger, r RedisPinger) *HealthHandler {
 	}
 }
 
+// Healthz godoc
+// @Summary Liveness probe
+// @Description Memeriksa apakah proses server backend hidup
+// @Tags System
+// @Produce json
+// @Success 200 {object} map[string]string
+// @Router /healthz [get]
 func (h *HealthHandler) Healthz(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"status": "ok",
@@ -35,6 +42,14 @@ func (h *HealthHandler) Healthz(c *gin.Context) {
 	})
 }
 
+// Readyz godoc
+// @Summary Readiness probe
+// @Description Memeriksa kesiapan koneksi MySQL dan Redis
+// @Tags System
+// @Produce json
+// @Success 200 {object} map[string]interface{}
+// @Failure 503 {object} map[string]interface{}
+// @Router /readyz [get]
 func (h *HealthHandler) Readyz(c *gin.Context) {
 	parentCtx := context.Background()
 	if c.Request != nil && c.Request.Context() != nil {

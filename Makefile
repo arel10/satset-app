@@ -33,11 +33,11 @@ lint-backend: ## Menjalankan go vet & linter backend
 lint-frontend: ## Menjalankan Next.js ESLint
 	cd apps/web && pnpm run lint
 
-migrate-up: ## Menjalankan migrasi DB
-	@echo "Migrasi database siap diintegrasikan pada Tahap 2"
+migrate-up: ## Menjalankan migrasi DB ke versi terbaru
+	cd apps/api && go run cmd/migrate/main.go up
 
-migrate-down: ## Rollback migrasi DB
-	@echo "Rollback database siap diintegrasikan pada Tahap 2"
+migrate-down: ## Rollback satu versi migrasi DB
+	cd apps/api && go run cmd/migrate/main.go down
 
 dev-api: ## Menjalankan API lokal
 	cd apps/api && go run cmd/server/main.go

@@ -1,0 +1,53 @@
+basePath: /
+host: localhost:8080
+info:
+  contact:
+    name: SatSet Engineering Team
+  description: Backend API modular monolith platform SatSet dengan AI Business Assistant.
+  title: SatSet Laundry Management API
+  version: "1.0"
+paths:
+  /healthz:
+    get:
+      description: Memeriksa apakah proses server backend hidup
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Liveness probe
+      tags:
+      - System
+  /readyz:
+    get:
+      description: Memeriksa kesiapan koneksi MySQL dan Redis
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "503":
+          description: Service Unavailable
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Readiness probe
+      tags:
+      - System
+schemes:
+- http
+- https
+securityDefinitions:
+  BearerAuth:
+    description: 'Masukkan token dalam format: Bearer <token>'
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"

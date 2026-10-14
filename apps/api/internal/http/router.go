@@ -1,80 +1,66 @@
 package http
 
 import (
-	"crypto/rand"
-	"encoding/hex"
-	"time"
+	"net/http"
 
 	"github.com/gin-gonic/gin"
+	swaggerFiles "github.com/swaggo/files"
+	ginSwagger "github.com/swaggo/gin-swagger"
+
+	"github.com/satset/api/internal/http/middleware"
+	"github.com/satset/api/internal/pkg/response"
+	"github.com/satset/api/internal/platform/config"
 	"github.com/satset/api/internal/platform/logger"
 )
 
-func generateRequestID() string {
-	b := make([]byte, 16)
-	_, _ = rand.Read(b)
-	return hex.EncodeToString(b)
-}
-
-func RequestIDMiddleware() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		reqID := c.GetHeader("X-Request-ID")
-		if reqID == "" {
-			reqID = generateRequestID()
-		}
-		c.Set("request_id", reqID)
-		c.Header("X-Request-ID", reqID)
-		c.Next()
+func NewRouter(cfg *config.Config, log *logger.Logger, healthHandler *HealthHandler) *gin.Engine {
+	if cfg.IsProduction() {
+		gin.SetMode(gin.ReleaseMode)
+	} else {
+		gin.SetMode(gin.DebugMode)
 	}
-}
 
-func LoggerMiddleware(log *logger.Logger) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		start := time.Now()
-		path := c.Request.URL.Path
-		raw := c.Request.URL.RawQuery
-
-		c.Next()
-
-		if raw != "" {
-			path = path + "?" + raw
-		}
-
-		reqID, _ := c.Get("request_id")
-		statusCode := c.Writer.Status()
-
-		log.Info().
-			Str("request_id", reqID.(string)).
-			Str("method", c.Request.Method).
-			Str("path", path).
-			Int("status", statusCode).
-			Dur("latency", time.Since(start)).
-			Str("client_ip", c.ClientIP()).
-			Msg("HTTP request handled")
-	}
-}
-
-func NewRouter(log *logger.Logger, healthHandler *HealthHandler) *gin.Engine {
-	gin.SetMode(gin.ReleaseMode)
 	router := gin.New()
 
-	router.Use(RequestIDMiddleware())
-	router.Use(LoggerMiddleware(log))
-	router.Use(gin.Recovery())
+	// Global middlewares
+	router.Use(middleware.RequestID())
+	router.Use(middleware.Logger(log))
+	router.Use(middleware.Recovery(log))
+	router.Use(middleware.SecurityHeaders())
+	router.Use(middleware.StrictCORS(cfg.AppBaseURL, cfg.IsProduction()))
+	router.Use(middleware.Gzip())
 
-	// Health probes
+	// Health check probes
 	router.GET("/healthz", healthHandler.Healthz)
 	router.GET("/readyz", healthHandler.Readyz)
 
-	// API v1 placeholder group
+	// Swagger UI (non-production only)
+	if !cfg.IsProduction() {
+		router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
+	}
+
+	// API v1 group
 	v1 := router.Group("/api/v1")
 	{
+		// Ping godoc
+		// @Summary Ping endpoint
+		// @Description Menguji koneksi API v1
+		// @Tags System
+		// @Produce json
+		// @Success 200 {object} response.SuccessResponse
+		// @Router /api/v1/ping [get]
 		v1.GET("/ping", func(c *gin.Context) {
-			c.JSON(200, gin.H{
+			response.SendSuccess(c, http.StatusOK, gin.H{
 				"message": "pong",
 				"version": "v1",
 			})
 		})
 	}
+
+	// 404 Route Handler
+	router.NoRoute(func(c *gin.Context) {
+		response.SendError(c, response.ErrNotFound)
+	})
 
 	return router
 }
