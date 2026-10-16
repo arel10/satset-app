@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
-import { Lock, User as UserIcon, AlertCircle, Sparkles } from 'lucide-react';
+import { Lock, User as UserIcon, AlertCircle } from 'lucide-react';
 
 export const LoginPage: React.FC = () => {
   const { login, isAuthenticated, user } = useAuth();
@@ -46,17 +46,9 @@ export const LoginPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-teal-50/30 to-slate-100 flex flex-col justify-center py-12 sm:px-6 lg:px-8 relative overflow-hidden">
-      {/* Decorative ambient background blur */}
-      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-96 h-96 bg-teal-400/10 rounded-full blur-3xl pointer-events-none" />
-
-      <div className="sm:mx-auto sm:w-full sm:max-w-md text-center relative z-10">
-        <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-semibold bg-teal-100/80 text-teal-800 border border-teal-200 mb-3 shadow-xs">
-          <Sparkles className="w-3.5 h-3.5 text-teal-600" />
-          <span>Cloud Edition • Live VPS</span>
-        </div>
-
-        <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-teal-700 via-teal-600 to-emerald-500 text-white flex items-center justify-center font-bold text-2xl mx-auto shadow-lg shadow-teal-700/25 ring-4 ring-white">
+    <div className="min-h-screen bg-slate-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
+      <div className="sm:mx-auto sm:w-full sm:max-w-md text-center">
+        <div className="w-12 h-12 rounded-2xl bg-teal-700 text-white flex items-center justify-center font-bold text-2xl mx-auto shadow-md">
           S
         </div>
         <h2 className="mt-4 text-2xl font-bold tracking-tight text-slate-900">
@@ -67,8 +59,8 @@ export const LoginPage: React.FC = () => {
         </p>
       </div>
 
-      <div className="mt-7 sm:mx-auto sm:w-full sm:max-w-md px-4 relative z-10">
-        <div className="bg-white/95 backdrop-blur-sm py-8 px-6 shadow-xl shadow-slate-200/60 border border-slate-200/90 rounded-2xl sm:px-10">
+      <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md px-4">
+        <div className="bg-white py-8 px-6 shadow-sm border border-slate-200/80 rounded-2xl sm:px-10">
           <form className="space-y-4" onSubmit={handleSubmit}>
             {error && (
               <div className="rounded-lg bg-rose-50 border border-rose-200 p-3.5 flex items-start gap-2.5 text-xs text-rose-800">
