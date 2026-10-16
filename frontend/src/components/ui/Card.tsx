@@ -4,6 +4,7 @@ export interface CardProps extends React.HTMLAttributes<HTMLDivElement> {
   title?: string;
   subtitle?: string;
   action?: React.ReactNode;
+  bodyClassName?: string;
 }
 
 export const Card: React.FC<CardProps> = ({
@@ -12,11 +13,15 @@ export const Card: React.FC<CardProps> = ({
   action,
   children,
   className = '',
+  bodyClassName = 'p-5',
   ...props
 }) => {
+  const hasOverflow = className.includes('overflow-');
+  const overflowClass = hasOverflow ? '' : 'overflow-hidden';
+
   return (
     <div
-      className={`bg-white rounded-xl border border-slate-200/80 shadow-xs overflow-hidden ${className}`}
+      className={`bg-white rounded-xl border border-slate-200/80 shadow-xs ${overflowClass} ${className}`}
       {...props}
     >
       {(title || subtitle || action) && (
@@ -28,7 +33,7 @@ export const Card: React.FC<CardProps> = ({
           {action && <div>{action}</div>}
         </div>
       )}
-      <div className="p-5">{children}</div>
+      <div className={bodyClassName}>{children}</div>
     </div>
   );
 };
