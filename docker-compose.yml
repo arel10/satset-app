@@ -1,113 +1,111 @@
 services:
-  mysql:
+  db:
     image: mysql:8.0
-    container_name: satset-mysql
+    container_name: satset-db
     restart: unless-stopped
     command:
+      - --default-authentication-plugin=mysql_native_password
       - --character-set-server=utf8mb4
       - --collation-server=utf8mb4_unicode_ci
-      - --default-time-zone=+00:00
     environment:
-      MYSQL_ROOT_PASSWORD: root_secret
-      MYSQL_DATABASE: satset_db
-      MYSQL_USER: satset
-      MYSQL_PASSWORD: satset_secret
-    ports:
-      - "3306:3306"
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-root_secret}
+      MYSQL_DATABASE: ${DB_NAME:-satset}
+      MYSQL_USER: ${DB_USER:-satset}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-satset_secret}
     volumes:
-      - mysql_data:/var/lib/mysql
-      - ./deploy/docker/mysql/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+      - db_data:/var/lib/mysql
+      - ./backend/migrations/000001_initial_schema.up.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+    ports:
+      - "${DB_PORT:-3306}:3306"
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "satset", "-psatset_secret"]
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u$$MYSQL_USER -p$$MYSQL_PASSWORD || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+    networks:
+      - satset-network
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: satset-backend
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      APP_NAME: ${APP_NAME:-SatSet}
+      APP_ENV: ${APP_ENV:-production}
+      APP_PORT: 8080
+      APP_TIMEZONE: ${APP_TIMEZONE:-Asia/Jakarta}
+      DB_HOST: db
+      DB_PORT: 3306
+      DB_USER: ${DB_USER:-satset}
+      DB_PASSWORD: ${DB_PASSWORD:-satset_secret}
+      DB_NAME: ${DB_NAME:-satset}
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:-your_super_secret_access_jwt_key_at_least_32_characters}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-your_super_secret_refresh_jwt_key_at_least_32_characters}
+      JWT_ACCESS_EXPIRY_MINUTES: ${JWT_ACCESS_EXPIRY_MINUTES:-15}
+      JWT_REFRESH_EXPIRY_DAYS: ${JWT_REFRESH_EXPIRY_DAYS:-7}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-3.5-flash-lite}
+      AI_MAX_TOOL_CALLS: ${AI_MAX_TOOL_CALLS:-5}
+      AI_DAILY_LIMIT_PER_USER: ${AI_DAILY_LIMIT_PER_USER:-30}
+      AI_REQUEST_TIMEOUT_SECONDS: ${AI_REQUEST_TIMEOUT_SECONDS:-30}
+      AI_MAX_QUESTION_LENGTH: ${AI_MAX_QUESTION_LENGTH:-2000}
+      LOGIN_MAX_ATTEMPTS: ${LOGIN_MAX_ATTEMPTS:-5}
+      LOGIN_LOCKOUT_MINUTES: ${LOGIN_LOCKOUT_MINUTES:-15}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
+      AUTO_MIGRATE: ${AUTO_MIGRATE:-true}
+    volumes:
+      - uploads_data:/app/uploads
+    ports:
+      - "${BACKEND_PORT:-8080}:8080"
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 -O - http://localhost:8080/healthz > /dev/null || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 20s
+      start_period: 10s
     networks:
       - satset-network
 
-  redis:
-    image: redis:7-alpine
-    container_name: satset-redis
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: /api
+        VITE_APP_NAME: ${VITE_APP_NAME:-SatSet Laundry}
+        VITE_APP_DESCRIPTION: ${VITE_APP_DESCRIPTION:-Sistem Manajemen Laundry & POS}
+        VITE_APP_TIMEZONE: ${VITE_APP_TIMEZONE:-Asia/Jakarta}
+        VITE_APP_DEFAULT_LOCALE: ${VITE_APP_DEFAULT_LOCALE:-id-ID}
+        VITE_APP_CURRENCY: ${VITE_APP_CURRENCY:-IDR}
+    container_name: satset-frontend
     restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
     ports:
-      - "6379:6379"
-    volumes:
-      - redis_data:/data
+      - "${FRONTEND_PORT:-3000}:80"
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
-      timeout: 3s
-      retries: 5
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 -O - http://127.0.0.1/ > /dev/null || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
     networks:
       - satset-network
 
-  minio:
-    image: minio/minio:latest
-    container_name: satset-minio
-    restart: unless-stopped
-    command: server /data --console-address ":9001"
-    environment:
-      MINIO_ROOT_USER: minioadmin
-      MINIO_ROOT_PASSWORD: minioadminpassword
-    ports:
-      - "9000:9000"
-      - "9001:9001"
-    volumes:
-      - minio_data:/data
-    networks:
-      - satset-network
-
-  api:
-    build:
-      context: ./apps/api
-      dockerfile: Dockerfile
-    container_name: satset-api
-    restart: unless-stopped
-    ports:
-      - "8080:8080"
-    environment:
-      APP_ENV: development
-      PORT: "8080"
-      DB_HOST: mysql
-      DB_PORT: "3306"
-      DB_USER: satset
-      DB_PASSWORD: satset_secret
-      DB_NAME: satset_db
-      REDIS_ADDR: redis:6379
-    depends_on:
-      mysql:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    networks:
-      - satset-network
-
-  web:
-    build:
-      context: ./apps/web
-      dockerfile: Dockerfile
-    container_name: satset-web
-    restart: unless-stopped
-    ports:
-      - "3000:3000"
-    environment:
-      NODE_ENV: production
-      PORT: "3000"
-      NEXT_PUBLIC_API_URL: http://localhost:8080
-    depends_on:
-      - api
-    networks:
-      - satset-network
+volumes:
+  db_data:
+    name: satset_db_data
+  uploads_data:
+    name: satset_uploads_data
 
 networks:
   satset-network:
+    name: satset_network
     driver: bridge
-
-volumes:
-  mysql_data:
-    driver: local
-  redis_data:
-    driver: local
-  minio_data:
-    driver: local
