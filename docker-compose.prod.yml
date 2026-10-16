@@ -1,0 +1,152 @@
+# ==============================================================================
+# SatSet Laundry — Docker Compose PRODUCTION
+# ==============================================================================
+# Gunakan file ini untuk deployment ke VPS/server production.
+# Jangan expose port database ke publik.
+# Pastikan .env.production sudah dikonfigurasi dengan benar sebelum menjalankan.
+#
+# Jalankan:
+#   docker compose -f docker-compose.prod.yml --env-file .env.production up -d --build
+#
+# Lihat log:
+#   docker compose -f docker-compose.prod.yml logs -f
+# ==============================================================================
+
+services:
+  db:
+    image: mysql:8.0
+    container_name: satset-db-prod
+    restart: always
+    command:
+      - --default-authentication-plugin=mysql_native_password
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --innodb-buffer-pool-size=256M
+      - --max-connections=100
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${DB_NAME}
+      MYSQL_USER: ${DB_USER}
+      MYSQL_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - db_data:/var/lib/mysql
+      - ./backend/migrations/000001_initial_schema.up.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+    # TIDAK expose port ke publik di production — hanya internal network
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u$$MYSQL_USER -p$$MYSQL_PASSWORD || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    networks:
+      - satset-internal
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: satset-backend-prod
+    restart: always
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      APP_NAME: ${APP_NAME:-SatSet}
+      APP_ENV: production
+      APP_PORT: 8080
+      APP_TIMEZONE: ${APP_TIMEZONE:-Asia/Jakarta}
+      DB_HOST: db
+      DB_PORT: 3306
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_NAME: ${DB_NAME}
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
+      JWT_ACCESS_EXPIRY_MINUTES: ${JWT_ACCESS_EXPIRY_MINUTES:-15}
+      JWT_REFRESH_EXPIRY_DAYS: ${JWT_REFRESH_EXPIRY_DAYS:-7}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-3.5-flash-lite}
+      AI_MAX_TOOL_CALLS: ${AI_MAX_TOOL_CALLS:-5}
+      AI_DAILY_LIMIT_PER_USER: ${AI_DAILY_LIMIT_PER_USER:-30}
+      AI_REQUEST_TIMEOUT_SECONDS: ${AI_REQUEST_TIMEOUT_SECONDS:-30}
+      AI_MAX_QUESTION_LENGTH: ${AI_MAX_QUESTION_LENGTH:-2000}
+      LOGIN_MAX_ATTEMPTS: ${LOGIN_MAX_ATTEMPTS:-5}
+      LOGIN_LOCKOUT_MINUTES: ${LOGIN_LOCKOUT_MINUTES:-15}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
+      AUTO_MIGRATE: ${AUTO_MIGRATE:-true}
+    volumes:
+      - uploads_data:/app/uploads
+    # Backend TIDAK perlu expose ke publik — frontend nginx yang proxy
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 -O - http://localhost:8080/healthz > /dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    networks:
+      - satset-internal
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: /api
+        VITE_APP_NAME: ${VITE_APP_NAME:-SatSet Laundry}
+        VITE_APP_DESCRIPTION: ${VITE_APP_DESCRIPTION:-Sistem Manajemen Laundry & POS}
+        VITE_APP_TIMEZONE: ${VITE_APP_TIMEZONE:-Asia/Jakarta}
+        VITE_APP_DEFAULT_LOCALE: ${VITE_APP_DEFAULT_LOCALE:-id-ID}
+        VITE_APP_CURRENCY: ${VITE_APP_CURRENCY:-IDR}
+    container_name: satset-frontend-prod
+    restart: always
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "${FRONTEND_PORT:-80}:80"
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 -O - http://127.0.0.1/ > /dev/null || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    networks:
+      - satset-internal
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "3"
+
+volumes:
+  db_data:
+    name: satset_db_data_prod
+  uploads_data:
+    name: satset_uploads_data_prod
+
+networks:
+  satset-internal:
+    name: satset_network_prod
+    driver: bridge
