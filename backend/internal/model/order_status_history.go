@@ -8,8 +8,8 @@ import (
 type OrderStatusHistory struct {
 	ID         uint      `gorm:"primaryKey" json:"id"`
 	OrderID    uint      `gorm:"index;not null" json:"order_id"`
-	FromStatus string    `gorm:"size:20;not null" json:"from_status"`
-	ToStatus   string    `gorm:"size:20;not null" json:"to_status"`
+	FromStatus string    `gorm:"column:previous_status;size:20;not null" json:"from_status"`
+	ToStatus   string    `gorm:"column:new_status;size:20;not null" json:"to_status"`
 	ChangedBy  uint      `gorm:"not null" json:"changed_by"`
 	Changer    User      `gorm:"foreignKey:ChangedBy" json:"changer,omitempty"`
 	Notes      string    `gorm:"type:text" json:"notes,omitempty"`

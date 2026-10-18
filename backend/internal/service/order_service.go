@@ -198,6 +198,8 @@ func (s *OrderService) CreateOrder(ctx context.Context, req CreateOrderRequest, 
 			orderJSON, _ := json.Marshal(order)
 			ik := &model.IdempotencyKey{
 				Key:            idempotencyKey,
+				UserID:         userID,
+				Endpoint:       "/api/orders",
 				ResponseStatus: http.StatusCreated,
 				ResponseBody:   string(orderJSON),
 				ExpiresAt:      time.Now().UTC().Add(24 * time.Hour),
