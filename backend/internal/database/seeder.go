@@ -294,9 +294,9 @@ func seedOrders(
 			items: []sampleOrderItemSpec{
 				{serviceName: "Cuci Komplit Express", quantity: 3.5},
 			},
-			notes:         "Bayar saat ambil",
-			workStatus:    model.WorkStatusSiapDiambil,
-			paid:          false,
+			notes:      "Bayar saat ambil",
+			workStatus: model.WorkStatusSiapDiambil,
+			paid:       false,
 		},
 		{
 			customerPhone: "081234567806",
